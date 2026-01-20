@@ -1,87 +1,110 @@
 import json
 import os
+import sqlite3
 import threading
 
 
 class StatsStore:
-    def __init__(self, path):
-        self.path = path
+    def __init__(self, db_path):
+        self.db_path = db_path
         self.lock = threading.Lock()
-        self.data = {
-            "users": [],
-            "total_lines_checked": 0,
-            "total_hits": 0,
-        }
-        self._load()
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA synchronous=NORMAL")
+        self._init_db()
 
-    def _load(self):
-        if not os.path.exists(self.path):
-            return
-        try:
-            with open(self.path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if isinstance(data, dict):
-                self.data.update(data)
-        except Exception:
-            pass
-
-    def _save(self):
-        tmp = self.path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(self.data, f, ensure_ascii=True, indent=2)
-        os.replace(tmp, self.path)
+    def _init_db(self):
+        with self.conn:
+            self.conn.execute(
+                "CREATE TABLE IF NOT EXISTS users ("
+                "user_id INTEGER PRIMARY KEY"
+                ")"
+            )
+            self.conn.execute(
+                "CREATE TABLE IF NOT EXISTS stats ("
+                "id INTEGER PRIMARY KEY CHECK (id = 1),"
+                "total_lines_checked INTEGER NOT NULL DEFAULT 0,"
+                "total_hits INTEGER NOT NULL DEFAULT 0"
+                ")"
+            )
+            self.conn.execute(
+                "INSERT OR IGNORE INTO stats (id, total_lines_checked, total_hits) "
+                "VALUES (1, 0, 0)"
+            )
 
     def add_user(self, user_id):
-        with self.lock:
-            if user_id not in self.data["users"]:
-                self.data["users"].append(user_id)
-                self._save()
+        with self.lock, self.conn:
+            self.conn.execute(
+                "INSERT OR IGNORE INTO users (user_id) VALUES (?)",
+                (int(user_id),),
+            )
 
     def add_run(self, lines_checked, hits):
-        with self.lock:
-            self.data["total_lines_checked"] += int(lines_checked)
-            self.data["total_hits"] += int(hits)
-            self._save()
+        with self.lock, self.conn:
+            self.conn.execute(
+                "UPDATE stats SET total_lines_checked = total_lines_checked + ?, "
+                "total_hits = total_hits + ? WHERE id = 1",
+                (int(lines_checked), int(hits)),
+            )
 
     def snapshot(self):
         with self.lock:
+            cur = self.conn.execute(
+                "SELECT total_lines_checked, total_hits FROM stats WHERE id = 1"
+            )
+            row = cur.fetchone() or (0, 0)
+            cur = self.conn.execute("SELECT COUNT(1) FROM users")
+            total_users = cur.fetchone()[0]
             return {
-                "total_users": len(self.data.get("users", [])),
-                "total_lines_checked": int(self.data.get("total_lines_checked", 0)),
-                "total_hits": int(self.data.get("total_hits", 0)),
+                "total_users": int(total_users),
+                "total_lines_checked": int(row[0]),
+                "total_hits": int(row[1]),
             }
 
 
 class UsersStore:
-    def __init__(self, path):
-        self.path = path
+    def __init__(self, db_path, json_path=None):
+        self.db_path = db_path
+        self.json_path = json_path
         self.lock = threading.Lock()
-        self.data = {"users": []}
-        self._load()
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA synchronous=NORMAL")
+        self._init_db()
+        self._export_json()
 
-    def _load(self):
-        if not os.path.exists(self.path):
+    def _init_db(self):
+        with self.conn:
+            self.conn.execute(
+                "CREATE TABLE IF NOT EXISTS users ("
+                "user_id INTEGER PRIMARY KEY"
+                ")"
+            )
+
+    def _list_users_unlocked(self):
+        cur = self.conn.execute("SELECT user_id FROM users ORDER BY user_id")
+        return [row[0] for row in cur.fetchall()]
+
+    def _export_json(self):
+        if not self.json_path:
             return
-        try:
-            with open(self.path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if isinstance(data, dict) and isinstance(data.get("users"), list):
-                self.data["users"] = data["users"]
-        except Exception:
-            pass
-
-    def _save(self):
-        tmp = self.path + ".tmp"
+        users = self.list_users()
+        tmp = self.json_path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(self.data, f, ensure_ascii=True, indent=2)
-        os.replace(tmp, self.path)
+            json.dump({"users": users}, f, ensure_ascii=True, indent=2)
+        os.replace(tmp, self.json_path)
+
+    def export_json(self):
+        self._export_json()
 
     def add_user(self, user_id):
-        with self.lock:
-            if user_id not in self.data["users"]:
-                self.data["users"].append(user_id)
-                self._save()
+        with self.lock, self.conn:
+            self.conn.execute(
+                "INSERT OR IGNORE INTO users (user_id) VALUES (?)",
+                (int(user_id),),
+            )
+        self._export_json()
 
     def list_users(self):
         with self.lock:
-            return list(self.data["users"])
+            return self._list_users_unlocked()
