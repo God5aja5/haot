@@ -24,8 +24,9 @@ from stats import StatsStore, UsersStore
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML", threaded=True)
 checker = HotmailChecker()
 
-stats = StatsStore("stats.json")
-users_store = UsersStore("users.json")
+DB_PATH = "bot.db"
+stats = StatsStore(DB_PATH)
+users_store = UsersStore(DB_PATH, "users.json")
 
 jobs = {}
 active_by_user = {}
@@ -271,7 +272,7 @@ def start_job(chat_id, user_id, combos, user_link, is_admin_user, reply_to_messa
             else:
                 bot.send_message(
                     chat_id,
-                    "⚠️ Nigger only one check at a time is allowed.",
+                    "⚠️ Only one check at a time is allowed.",
                     reply_to_message_id=reply_to_message_id,
                 )
             return
@@ -295,6 +296,7 @@ def start_job(chat_id, user_id, combos, user_link, is_admin_user, reply_to_messa
 def handle_start(message):
     print(f"[START_CMD] user_id={message.from_user.id}")
     users_store.add_user(message.from_user.id)
+    stats.add_user(message.from_user.id)
     welcome = (
         f"{format_header()}\n\n"
         "📥 <b>Upload a .txt file with email:pass combos.</b>\n\n"
@@ -323,6 +325,27 @@ def handle_status(message):
         f"<b>by</b> {BOT_DEV}"
     )
     bot.send_message(message.chat.id, text, reply_to_message_id=message.message_id)
+
+
+@bot.message_handler(commands=["fetch_all"])
+def handle_fetch_all(message):
+    if not is_admin(message.from_user.id):
+        return
+    users_store.export_json()
+    if not os.path.exists(users_store.json_path):
+        bot.send_message(
+            message.chat.id,
+            "❌ users.json not found.",
+            reply_to_message_id=message.message_id,
+        )
+        return
+    with open(users_store.json_path, "rb") as f:
+        bot.send_document(
+            message.chat.id,
+            f,
+            caption=f"{format_header()}\n<b>Users export</b>\n<b>by</b> {BOT_DEV}",
+            reply_to_message_id=message.message_id,
+        )
 
 
 @bot.message_handler(commands=["adm"])
@@ -497,6 +520,8 @@ def handle_document(message):
     user_id = message.from_user.id
     chat_id = message.chat.id
     print(f"[UPLOAD] user_id={user_id} filename={message.document.file_name}")
+    users_store.add_user(user_id)
+    stats.add_user(user_id)
 
     if maintenance_mode and not is_admin(user_id):
         bot.send_message(
