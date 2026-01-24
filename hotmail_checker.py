@@ -78,7 +78,7 @@ SERVICES = {
     "Genshin Impact": {"sender": "noreply@hoyoverse.com"},
     "PUBG": {"sender": "noreply@pubgmobile.com"},
     "Free Fire": {"sender": "noreply@freefire.com"},
-    "Mobile Legends": {"sender": "noreply@mobilelegends.com"},
+    "Mobile Legends": {"sender": "donotreply@register-sc.moonton.com"},
     "Call of Duty": {"sender": "noreply@callofduty.com"},
     "Fortnite": {"sender": "noreply@epicgames.com"},
     "Roblox": {"sender": "accounts@roblox.com"},
