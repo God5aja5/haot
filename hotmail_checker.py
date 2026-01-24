@@ -181,6 +181,7 @@ class HotmailChecker:
             birthdate = "Unknown"
 
         linked_services = []
+        linked_service_names = []
         try:
             url = f"https://outlook.live.com/owa/{email}/startupdata.ashx?app=Mini&n=0"
             headers = {
@@ -211,8 +212,10 @@ class HotmailChecker:
                 if sender in inbox_response:
                     count = inbox_response.count(sender)
                     linked_services.append(f"[✔] {service_name} (Messages: {count})")
+                    linked_service_names.append(service_name)
         except Exception:
             linked_services = []
+            linked_service_names = []
 
         linked_services_str = (
             "\n".join(linked_services) if linked_services else "[×] No linked services found."
@@ -230,7 +233,7 @@ class HotmailChecker:
             "by : @BaignX\n"
             "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
         )
-        return capture
+        return capture, linked_service_names
 
     def check_account(self, email, password):
         try:
@@ -334,8 +337,8 @@ class HotmailChecker:
                     break
             cid = mspcid.upper() if mspcid else str(uuid.uuid4()).upper()
 
-            capture = self._get_capture(email, password, access_token, cid)
-            return {"status": "HIT", "capture": capture}
+            capture, services = self._get_capture(email, password, access_token, cid)
+            return {"status": "HIT", "capture": capture, "services": services}
 
         except requests.exceptions.Timeout:
             return {"status": "RETRY"}
