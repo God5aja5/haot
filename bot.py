@@ -147,6 +147,8 @@ def parse_combos(file_bytes):
 
 
 def normalize_service_filename(service_name):
+    if service_name.lower() == "mobile legends":
+        return "mobilelegends.txt"
     slug = re.sub(r"[^a-z0-9]+", "_", service_name.lower()).strip("_")
     if not slug:
         slug = "service"
