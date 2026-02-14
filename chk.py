@@ -191,6 +191,21 @@ services = {
     # Tech & Productivity
     "Google": {"sender": "no-reply@accounts.google.com", "file": "google_accounts.txt"},
     "Microsoft": {"sender": "account-security-noreply@accountprotection.microsoft.com", "file": "microsoft_accounts.txt"},
+    "Amazon Web Services (AWS)": {"senders": ["no-reply@amazonaws.com", "aws-security@amazon.com"], "file": "aws_accounts.txt"},
+    "Microsoft Azure": {"senders": ["azure-noreply@microsoft.com", "security-noreply@microsoft.com"], "file": "azure_accounts.txt"},
+    "Google Cloud (GCP)": {"senders": ["cloud-noreply@google.com", "security@google.com"], "file": "gcp_accounts.txt"},
+    "DigitalOcean": {"senders": ["no-reply@digitalocean.com", "support@digitalocean.com"], "file": "digitalocean_accounts.txt"},
+    "Vultr": {"senders": ["support@vultr.com", "no-reply@vultr.com"], "file": "vultr_accounts.txt"},
+    "Linode": {"senders": ["support@linode.com", "no-reply@linode.com"], "file": "linode_accounts.txt"},
+    "Hetzner": {"senders": ["support@hetzner.com", "robot@hetzner.com"], "file": "hetzner_accounts.txt"},
+    "OVHcloud": {"senders": ["support@ovh.com", "noreply@ovhcloud.com"], "file": "ovhcloud_accounts.txt"},
+    "Contabo": {"senders": ["support@contabo.com", "noreply@contabo.com"], "file": "contabo_accounts.txt"},
+    "RackNerd": {"senders": ["support@racknerd.com", "billing@racknerd.com"], "file": "racknerd_accounts.txt"},
+    "IONOS": {"senders": ["support@ionos.com", "info@ionos.com"], "file": "ionos_accounts.txt"},
+    "Kamatera": {"sender": "support@kamatera.com", "file": "kamatera_accounts.txt"},
+    "UpCloud": {"senders": ["support@upcloud.com", "noreply@upcloud.com"], "file": "upcloud_accounts.txt"},
+    "Hostinger (VPS + RDP)": {"senders": ["support@hostinger.com", "no-reply@hostinger.com"], "file": "hostinger_accounts.txt"},
+    "InterServer": {"sender": "support@interserver.net", "file": "interserver_accounts.txt"},
     "Apple": {"sender": "no-reply@apple.com", "file": "apple_accounts.txt"},
     "Yahoo": {"sender": "info@yahoo.com", "file": "yahoo_accounts.txt"},
     "GitHub": {"sender": "noreply@github.com", "file": "github_accounts.txt"},
@@ -344,9 +359,12 @@ def get_capture(email, password, token, cid):
         # --------- Check Linked Services ---------
         linked_services = []
         for service_name, service_info in services.items():
-            sender = service_info["sender"]
-            if sender in inbox_response:
-                count = inbox_response.count(sender)
+            sender_list = service_info.get("senders")
+            if sender_list is None:
+                sender_list = [service_info["sender"]]
+
+            count = sum(inbox_response.count(sender) for sender in sender_list)
+            if count > 0:
                 linked_services.append(f"[✔] {service_name} (Messages: {count})")
                 # Save to service-specific file
                 save_account_by_type(service_name, email, password)
