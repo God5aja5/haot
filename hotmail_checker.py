@@ -99,6 +99,21 @@ SERVICES = {
     # Tech & Productivity
     "Google": {"sender": "no-reply@accounts.google.com"},
     "Microsoft": {"sender": "account-security-noreply@accountprotection.microsoft.com"},
+    "Amazon Web Services (AWS)": {"senders": ["no-reply@amazonaws.com", "aws-security@amazon.com"]},
+    "Microsoft Azure": {"senders": ["azure-noreply@microsoft.com", "security-noreply@microsoft.com"]},
+    "Google Cloud (GCP)": {"senders": ["cloud-noreply@google.com", "security@google.com"]},
+    "DigitalOcean": {"senders": ["no-reply@digitalocean.com", "support@digitalocean.com"]},
+    "Vultr": {"senders": ["support@vultr.com", "no-reply@vultr.com"]},
+    "Linode": {"senders": ["support@linode.com", "no-reply@linode.com"]},
+    "Hetzner": {"senders": ["support@hetzner.com", "robot@hetzner.com"]},
+    "OVHcloud": {"senders": ["support@ovh.com", "noreply@ovhcloud.com"]},
+    "Contabo": {"senders": ["support@contabo.com", "noreply@contabo.com"]},
+    "RackNerd": {"senders": ["support@racknerd.com", "billing@racknerd.com"]},
+    "IONOS": {"senders": ["support@ionos.com", "info@ionos.com"]},
+    "Kamatera": {"sender": "support@kamatera.com"},
+    "UpCloud": {"senders": ["support@upcloud.com", "noreply@upcloud.com"]},
+    "Hostinger (VPS + RDP)": {"senders": ["support@hostinger.com", "no-reply@hostinger.com"]},
+    "InterServer": {"sender": "support@interserver.net"},
     "Apple": {"sender": "no-reply@apple.com"},
     "Yahoo": {"sender": "info@yahoo.com"},
     "GitHub": {"sender": "noreply@github.com"},
@@ -208,9 +223,12 @@ class HotmailChecker:
             inbox_response = requests.post(url, headers=headers, data="", timeout=30).text
 
             for service_name, service_info in SERVICES.items():
-                sender = service_info["sender"]
-                if sender in inbox_response:
-                    count = inbox_response.count(sender)
+                sender_list = service_info.get("senders")
+                if sender_list is None:
+                    sender_list = [service_info["sender"]]
+
+                count = sum(inbox_response.count(sender) for sender in sender_list)
+                if count > 0:
                     linked_services.append(f"[✔] {service_name} (Messages: {count})")
                     linked_service_names.append(service_name)
         except Exception:
