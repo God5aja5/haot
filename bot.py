@@ -146,9 +146,29 @@ def parse_combos(file_bytes):
     return combos
 
 
+SERVICE_FILENAME_MAP = {
+    "Mobile Legends": "mobilelegends.txt",
+    "Amazon Web Services (AWS)": "aws_accounts.txt",
+    "Microsoft Azure": "azure_accounts.txt",
+    "Google Cloud (GCP)": "gcp_accounts.txt",
+    "DigitalOcean": "digitalocean_accounts.txt",
+    "Vultr": "vultr_accounts.txt",
+    "Linode": "linode_accounts.txt",
+    "Hetzner": "hetzner_accounts.txt",
+    "OVHcloud": "ovhcloud_accounts.txt",
+    "Contabo": "contabo_accounts.txt",
+    "RackNerd": "racknerd_accounts.txt",
+    "IONOS": "ionos_accounts.txt",
+    "Kamatera": "kamatera_accounts.txt",
+    "UpCloud": "upcloud_accounts.txt",
+    "Hostinger (VPS + RDP)": "hostinger_accounts.txt",
+    "InterServer": "interserver_accounts.txt",
+}
+
+
 def normalize_service_filename(service_name):
-    if service_name.lower() == "mobile legends":
-        return "mobilelegends.txt"
+    if service_name in SERVICE_FILENAME_MAP:
+        return SERVICE_FILENAME_MAP[service_name]
     slug = re.sub(r"[^a-z0-9]+", "_", service_name.lower()).strip("_")
     if not slug:
         slug = "service"
